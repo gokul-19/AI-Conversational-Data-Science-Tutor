@@ -1,2 +1,1 @@
-mkdir -p static/css
-echo 'body { background-color: #f0f2f6; }' > static/css/style.css
+echo "body { background-color: #f5f5f5; font-family: Arial, sans-serif; }" > static/css/style.css
