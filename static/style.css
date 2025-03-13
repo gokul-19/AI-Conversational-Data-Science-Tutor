@@ -1,9 +1,2 @@
-/* Chat UI Styling */
-.message {
-    padding: 10px;
-    border-radius: 10px;
-    margin: 5px 0;
-}
-.assistant-message {
-    background-color: #f0f2f6;
-}
+mkdir -p static/css
+echo 'body { background-color: #f0f2f6; }' > static/css/style.css
