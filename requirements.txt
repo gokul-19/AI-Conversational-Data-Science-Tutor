@@ -3,3 +3,4 @@ openai
 streamlit
 langchain_google_genai
 google-generativeai
+python-dotenv
