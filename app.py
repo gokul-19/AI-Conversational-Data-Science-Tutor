@@ -55,16 +55,18 @@ def main():
         with st.chat_message(message["role"]):
             st.write(message["content"])
     
-    user_input = st.chat_input("Type your question here...")
+    if "user_input" not in st.session_state:
+        st.session_state["user_input"] = None
+
+    user_input = st.chat_input("Type your question here...")  # Prevents duplicate element errors
+    
     if user_input:
+        st.session_state["user_input"] = user_input
         st.session_state["messages"].append({"role": "user", "content": user_input})
         response = conversational_tutor(user_input)
         st.session_state["messages"].append({"role": "assistant", "content": response})
         with st.chat_message("assistant"):
             st.write(response)
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
