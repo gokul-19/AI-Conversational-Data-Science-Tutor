@@ -8,6 +8,11 @@ import time
 
 # Load environment variables
 load_dotenv()
+google_api_key = os.getenv("GOOGLE_API_KEY")
+
+if not google_api_key:
+    st.error("Google API Key not found. Please add it to your .env file.")
+
 
 def initialize_session_state():
     """Initialize session state variables if they don't exist"""
@@ -21,6 +26,7 @@ def initialize_session_state():
         st.session_state.thinking = False
     if "header_rendered" not in st.session_state:
         st.session_state.header_rendered = False
+
 
 def main():
     st.set_page_config(
@@ -118,6 +124,7 @@ def main():
         
         # Rerun to clean up the UI state
         st.rerun()
+
 
 if __name__ == "__main__":
     main()
