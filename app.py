@@ -1,130 +1,70 @@
 import streamlit as st
-from utils.conversation import DataScienceTutor
-from components.sidebar import render_sidebar
-from components.chat_interface import render_chat_interface
+from langchain.memory import ConversationBufferMemory
+from langchain_google_genai import ChatGoogleGenerativeAI
 import os
-from dotenv import load_dotenv
-import time
 
-# Load environment variables
-load_dotenv()
-google_api_key = os.getenv("GOOGLE_API_KEY")
+# Load API key securely
+google_api_key = os.getenv("GOOGLE_API_KEY") or st.secrets["google"]["api_key"]
 
-if not google_api_key:
-    st.error("Google API Key not found. Please add it to your .env file.")
+# Initialize memory
+memory = ConversationBufferMemory()
 
+# Initialize Gemini 1.5 Pro Model
+chat_model = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0.7, google_api_key=google_api_key)
 
-def initialize_session_state():
-    """Initialize session state variables if they don't exist"""
-    if "tutor" not in st.session_state:
-        st.session_state.tutor = DataScienceTutor()
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    if "thinking" not in st.session_state:
-        st.session_state.thinking = False
-    if "header_rendered" not in st.session_state:
-        st.session_state.header_rendered = False
+def conversational_tutor(user_input):
+    """Function to interact with the conversational AI tutor."""
+    memory.save_context({"human": user_input}, {"ai": "Processing..."})  # Temporary response
+    
+    conversation_history = memory.load_memory_variables({})
+    
+    prompt = f"""
+    You are a data science tutor. Answer ONLY data science-related questions.
+    If the user asks something unrelated, politely decline.
+    Keep the conversation aware using memory.
+    
+    Conversation history: {conversation_history}
+    
+    User: {user_input}
+    """
+    
+    response = chat_model.invoke(prompt)
+    
+    # Extract content properly
+    if hasattr(response, 'content'):
+        response_text = response.content
+    elif isinstance(response, dict):
+        response_text = response.get("content", "I'm sorry, I couldn't generate a response.")
+    else:
+        response_text = str(response)
 
+    # Store cleaned response in memory
+    memory.save_context({"human": user_input}, {"ai": response_text})
 
+    return response_text
+
+# Streamlit UI
 def main():
-    st.set_page_config(
-        page_title="Data Science Tutor AI",
-        page_icon="📊",
-        layout="wide",
-        initial_sidebar_state="expanded",
-        menu_items={
-            'About': "Data Science Tutor AI powered by Gemini 1.5 Pro"
-        }
-    )
+    st.title("Conversational AI Data Science Tutor")
+    st.write("Ask me anything about Data Science!")
     
-    # Apply custom CSS before any elements are rendered
-    try:
-        with open("static/css/style.css") as f:
-            st.markdown(f"""
-            <style>
-            {f.read()}
-            </style>
-            """, unsafe_allow_html=True)
-    except FileNotFoundError:
-        st.warning("Style file not found. UI may not display properly.")
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = []
     
-    # Initialize session state
-    initialize_session_state()
+    for message in st.session_state["messages"]:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
     
-    # Only render the title if we're not in the middle of processing a response
-    if not st.session_state.thinking:
-        # App title
-        col1, col2 = st.columns([1, 9])
-        with col1:
-            try:
-                st.markdown("")
-                st.image("static/img/logo.svg", width=80)
-            except FileNotFoundError:
-                st.warning("Logo file not found.")
-        with col2:
-            st.markdown('<h1 class="main-title">Data Science Tutor AI</h1>', unsafe_allow_html=True)
-            st.markdown('<h3 class="subtitle">Your personal AI assistant for data science learning</h3>', unsafe_allow_html=True)
-        
-        # Mark headers as rendered
-        st.session_state.header_rendered = True
-    
-    # Render sidebar with options
-    render_sidebar()
-    
-    # Render main chat interface
-    render_chat_interface()
-    
-    # Process assistant response if user input was just added
-    if st.session_state.messages and st.session_state.messages[-1]["role"] == "user" and not st.session_state.thinking:
-        st.session_state.thinking = True
-        
-        # Get the user's message
-        user_message = st.session_state.messages[-1]["content"]
-        
-        # Create a placeholder for the assistant response below the last message
-        with st.chat_message("assistant", avatar="static/img/logo.svg"):
-            message_placeholder = st.empty()
-            message_placeholder.markdown('<div class="message assistant-message">Thinking...</div>', unsafe_allow_html=True)
-            
-            # Generate response
-            try:
-                response = st.session_state.tutor.get_response(user_message)
-                
-                # Stream the response
-                displayed_response = ""
-                for chunk in response.split():
-                    displayed_response += chunk + " "
-                    message_placeholder.markdown(
-                        f'<div class="message assistant-message">{displayed_response}▌</div>', 
-                        unsafe_allow_html=True
-                    )
-                    time.sleep(0.01)
-                
-                # Display final response
-                message_placeholder.markdown(
-                    f'<div class="message assistant-message">{response}</div>', 
-                    unsafe_allow_html=True
-                )
-                
-                # Add to messages
-                st.session_state.messages.append({"role": "assistant", "content": response})
-            except Exception as e:
-                error_message = f"Sorry, I encountered an error: {str(e)}"
-                message_placeholder.markdown(
-                    f'<div class="message assistant-message">{error_message}</div>', 
-                    unsafe_allow_html=True
-                )
-                st.session_state.messages.append({"role": "assistant", "content": error_message})
-        
-        # Reset thinking state
-        st.session_state.thinking = False
-        st.session_state.header_rendered = False
-        
-        # Rerun to clean up the UI state
-        st.rerun()
+    user_input = st.chat_input("Type your question here...")
+    if user_input:
+        st.session_state["messages"].append({"role": "user", "content": user_input})
+        response = conversational_tutor(user_input)
+        st.session_state["messages"].append({"role": "assistant", "content": response})
+        with st.chat_message("assistant"):
+            st.write(response)
 
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()
